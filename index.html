@@ -55,21 +55,22 @@
                 <h2 class="text-2xl font-bold mb-2 text-white">セキュリティ検証</h2>
                 <p class="text-[#b9bbbe] text-sm mb-6">悪意ある操作を防止するため、以下のチェックを完了してください。</p>
 
-                <!-- トークン表示用（確認用） -->
-                <div id="token-display" class="bg-[#202225] p-3 rounded-lg text-xs font-mono text-gray-400 mb-6 break-all border border-black/30 shadow-inner">
-                    URLトークンを読み込み中...
-                </div>
+                <!-- エラーメッセージ表示エリア（alertの代わり） -->
+                <div id="error-message" class="hidden bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-xl text-xs mb-6 text-left break-all"></div>
 
                 <!-- 👇 Cloudflare Turnstile ウィジェットの配置場所 -->
-                <!-- ダークテーマに合わせて data-theme="dark" を追加しています -->
                 <div class="flex justify-center mb-6">
                     <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-64Li3m" data-callback="onTurnstileSuccess" data-theme="dark"></div>
                 </div>
 
-                <!-- 認証実行ボタン -->
-                <button id="verify-btn" onclick="executeAuth()" disabled class="w-full bg-discord hover:bg-discord-hover text-white font-bold py-3.5 px-4 rounded-xl transition duration-300 shadow-[0_4px_14px_rgba(88,101,242,0.4)] opacity-50 cursor-not-allowed disabled:hover:bg-discord">
-                    認証を完了する
-                </button>
+                <!-- 認証処理中の状態を表示するステータスエリア -->
+                <div id="status-container" class="hidden items-center justify-center gap-2 py-3.5 px-4 bg-discord/10 rounded-xl text-discord font-bold text-sm border border-discord/20">
+                    <svg class="animate-spin h-5 w-5 text-discord" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>認証処理中...</span>
+                </div>
             </div>
 
             <!-- 完了後に切り替える画面 -->
@@ -101,33 +102,47 @@
         }
 
         const discordToken = extractToken();
-        const tokenDisplay = document.getElementById('token-display');
         let turnstileToken = null; // Turnstileの認証完了トークン
 
-        if (discordToken) {
-            
-        } else {
-            tokenDisplay.textContent = 'エラー: 有効なトークンが見つかりません。';
+        function showError(message) {
+            const errorBox = document.getElementById('error-message');
+            errorBox.textContent = message;
+            errorBox.classList.remove('hidden');
         }
 
-        // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数
+        function hideError() {
+            const errorBox = document.getElementById('error-message');
+            errorBox.classList.add('hidden');
+        }
+
+        // 初期チェック（トークンが無い場合）
+        if (!discordToken) {
+            showError('エラー: 有効な認証トークンが見つかりません。Discordから再度アクセスしてください。');
+        }
+
+        // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数（自動実行）
         function onTurnstileSuccess(token) {
             turnstileToken = token;
-            const btn = document.getElementById('verify-btn');
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            executeAuth(); // 自動的に送信処理を実行
         }
 
-        // 3. 「認証を完了する」ボタンを押したときの処理
+        // 3. 認証実行処理
         async function executeAuth() {
-            if (!discordToken || !turnstileToken) {
-                alert('トークンまたはセキュリティ検証が無効です。');
+            hideError();
+
+            if (!discordToken) {
+                showError('認証トークンが不足しています。');
                 return;
             }
 
-            const btn = document.getElementById('verify-btn');
-            btn.disabled = true;
-            btn.textContent = '認証処理中...';
+            if (!turnstileToken) {
+                showError('セキュリティ検証トークンが無効です。');
+                return;
+            }
+
+            const statusContainer = document.getElementById('status-container');
+            statusContainer.classList.remove('hidden');
+            statusContainer.classList.add('flex');
 
             try {
                 // Cloudflare Pages Functions (バックエンド) へデータを送信
@@ -149,15 +164,15 @@
                     document.getElementById('auth-box').classList.add('hidden');
                     document.getElementById('success-box').classList.remove('hidden');
                 } else {
-                    alert('認証に失敗しました: ' + (result.error || '不明なエラー'));
-                    btn.disabled = false;
-                    btn.textContent = '認証を完了する';
+                    showError('認証に失敗しました: ' + (result.error || '不明なエラー'));
+                    statusContainer.classList.add('hidden');
+                    statusContainer.classList.remove('flex');
                 }
             } catch (error) {
                 console.error('通信エラー:', error);
-                alert('サーバーとの通信に失敗しました。');
-                btn.disabled = false;
-                btn.textContent = '認証を完了する';
+                showError('サーバーとの通信に失敗しました。');
+                statusContainer.classList.add('hidden');
+                statusContainer.classList.remove('flex');
             }
         }
     </script>
