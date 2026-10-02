@@ -1,144 +1,189 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>サーバー認証 - 認証システム</title>
-    
-   
-    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+require('dotenv').config();
+const { 
+    Client, 
+    GatewayIntentBits, 
+    SlashCommandBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    PermissionFlagsBits,
+    ChannelType,
+    Events,
+    MessageFlags
+} = require('discord.js');
+const crypto = require('crypto'); // トークン生成用
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Cloudflare Turnstile のスクリプト -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-</head>
-<body class="bg-slate-50 min-h-screen flex flex-col justify-between font-sans text-slate-800">
+// ボットのクライアントを作成
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers // メンバー情報を取得・操作するために必要
+    ]
+});
 
-    <!-- ヘッダー -->
-    <header class="w-full py-6 px-8 bg-white border-b border-slate-100 shadow-sm">
-        <h1 class="text-xl font-bold text-indigo-600">🔐 Discord Server Auth</h1>
-    </header>
+// サーバーごとの認証メッセージIDやロールIDを保存するストレージ
+const authMessages = new Map();
+const guildRoles = new Map(); // guildId => roleId
 
-    <!-- メインコンテンツ -->
-    <main class="flex-1 flex items-center justify-center p-4">
-        <div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100 text-center">
-            
-            <div id="auth-box">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full mb-6">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                    </svg>
-                </div>
+// 一時トークンと「どのサーバーの、どのユーザーか」を紐付けるストレージ
+// 本番運用ではCloudflare D1やKV等への保存を推奨しますが、まずはMapで動作させます
+// 構造: token => { guildId, userId }
+const activeTokens = new Map();
 
-                <h2 class="text-2xl font-bold mb-2">セキュリティ検証</h2>
-                <p class="text-slate-500 text-sm mb-6">悪意ある操作を防止するため、以下のチェックを完了してください。</p>
+// スラッシュコマンドの定義
+const commands = [
+    new SlashCommandBuilder()
+        .setName('auth-create')
+        .setDescription('認証メッセージを送信し、自動でロールを準備します')
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('認証メッセージを置くチャンネル')
+                .addChannelTypes(ChannelType.GuildText)
+                .setRequired(true)
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
-                <!-- トークン表示用（確認用） -->
-                <div id="token-display" class="bg-slate-100 p-3 rounded-lg text-xs font-mono text-slate-600 mb-6 break-all">
-                    URLトークンを読み込み中...
-                </div>
+    new SlashCommandBuilder()
+        .setName('auth-delete')
+        .setDescription('このサーバーの認証メッセージを削除します')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+];
 
-                <!-- 👇 Cloudflare Turnstile ウィジェットの配置場所 -->
-                <!-- サイトキー（sitekey）はCloudflareダッシュボードで発行したものを指定してください -->
-                <div class="flex justify-center mb-6">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-64Li3m" data-callback="onTurnstileSuccess"></div>
-                </div>
+client.once(Events.ClientReady, async () => {
+    console.log(`Logged in as ${client.user.tag}`);
 
-                <!-- 認証実行ボタン -->
-                <button id="verify-btn" onclick="executeAuth()" disabled class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-indigo-100 opacity-50 cursor-not-allowed">
-                    認証を完了する
-                </button>
-            </div>
-
-            <!-- 完了後に切り替える画面 -->
-            <div id="success-box" class="hidden">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full mb-6">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                </div>
-                <h2 class="text-2xl font-bold mb-2 text-slate-800">認証が完了しました！</h2>
-                <p class="text-slate-500 text-sm mb-6">Discordサーバーに戻り、ロールが付与されているかご確認ください。</p>
-                <p class="text-xs text-slate-400">このページは閉じても問題ありません。</p>
-            </div>
-
-        </div>
-    </main>
-
-    <!-- フッター -->
-    <footer class="w-full py-4 text-center text-xs text-slate-400 border-t border-slate-100">
-        &copy; AuthBot System. All rights reserved.
-    </footer>
-
-    <!-- スクリプト処理 -->
-    <script>
-        // 1. URLからDiscord Botのトークンを取得
-        function extractToken() {
-            const params = new URLSearchParams(window.location.search);
-            return params.get('token');
+    try {
+        for (const guild of client.guilds.cache.values()) {
+            await guild.commands.set(commands);
+            console.log(`サーバー [${guild.name}] にコマンドを登録しました。`);
         }
+    } catch (error) {
+        console.error('コマンドの登録に失敗しました:', error);
+    }
+});
 
-        const discordToken = extractToken();
-        const tokenDisplay = document.getElementById('token-display');
-        let turnstileToken = null; // Turnstileの認証完了トークン
+client.on(Events.GuildCreate, async guild => {
+    try {
+        await guild.commands.set(commands);
+        console.log(`新しいサーバー [${guild.name}] にコマンドを登録しました。`);
+    } catch (error) {
+        console.error('サーバー参加時のコマンド登録に失敗しました:', error);
+    }
+});
 
-        if (discordToken) {
-            tokenDisplay.textContent = `Discord Token: ${discordToken.substring(0, 10)}...（確認OK）`;
-        } else {
-            tokenDisplay.textContent = 'エラー: 有効なトークンが見つかりません。';
-        }
+client.on(Events.InteractionCreate, async interaction => {
+    // 1. スラッシュコマンドの処理
+    if (interaction.isChatInputCommand()) {
+        const { commandName } = interaction;
 
-        // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数
-        function onTurnstileSuccess(token) {
-            turnstileToken = token;
-            const btn = document.getElementById('verify-btn');
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-
-        // 3. 「認証を完了する」ボタンを押したときの処理
-        async function executeAuth() {
-            if (!discordToken || !turnstileToken) {
-                alert('トークンまたはセキュリティ検証が無効です。');
-                return;
-            }
-
-            const btn = document.getElementById('verify-btn');
-            btn.disabled = true;
-            btn.textContent = '認証処理中...';
+        if (commandName === 'auth-create') {
+            const channel = interaction.options.getChannel('channel');
+            const guild = interaction.guild;
 
             try {
-                // Cloudflare Pages Functions (バックエンド) へデータを送信
-                const response = await fetch('/api/verify', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        token: discordToken,
-                        turnstileToken: turnstileToken
-                    })
+                // ① サーバー内に「認証済み」ロールがすでにあるか確認、なければ作成
+                let authRole = guild.roles.cache.find(r => r.name === '認証済み');
+                if (!authRole) {
+                    authRole = await guild.roles.create({
+                        name: '認証済み',
+                        color: '#5865F2', // Discordカラー
+                        reason: '認証システム用の自動作成ロール',
+                    });
+                }
+                // サーバーごとのロールIDを保存
+                guildRoles.set(guild.id, authRole.id);
+
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('start_auth')
+                            .setLabel('認証する')
+                            .setStyle(ButtonStyle.Primary)
+                            .setEmoji('🔐')
+                    );
+
+                const message = await channel.send({
+                    content: '### 【サーバー認証】\n下の「認証する」ボタンを押して、認証ページへ進んでください。',
+                    components: [row]
                 });
 
-                const result = await response.json();
+                authMessages.set(guild.id, message.id);
 
-                if (response.ok && result.success) {
-                    // 成功した場合：画面を成功状態に切り替え
-                    document.getElementById('auth-box').classList.add('hidden');
-                    document.getElementById('success-box').classList.remove('hidden');
-                } else {
-                    alert('認証に失敗しました: ' + (result.error || '不明なエラー'));
-                    btn.disabled = false;
-                    btn.textContent = '認証を完了する';
-                }
+                await interaction.reply({
+                    content: `${channel} に認証メッセージを設置し、「認証済み」ロールの準備が完了しました！`,
+                    flags: MessageFlags.Ephemeral
+                });
             } catch (error) {
-                console.error('通信エラー:', error);
-                alert('サーバーとの通信に失敗しました。');
-                btn.disabled = false;
-                btn.textContent = '認証を完了する';
+                console.error(error);
+                await interaction.reply({
+                    content: '認証メッセージの送信、またはロールの作成に失敗しました。Botに「ロールの管理」権限があるか確認してください。',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        } 
+        
+        else if (commandName === 'auth-delete') {
+            const messageId = authMessages.get(interaction.guildId);
+
+            if (!messageId) {
+                return interaction.reply({
+                    content: 'このサーバーには現在、Botが管理している認証メッセージが見つかりません。',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            try {
+                let deleted = false;
+                for (const channel of interaction.guild.channels.cache.values()) {
+                    if (!channel.isTextBased()) continue;
+                    try {
+                        const msg = await channel.messages.fetch(messageId);
+                        if (msg) {
+                            await msg.delete();
+                            deleted = true;
+                            break;
+                        }
+                    } catch (e) {
+                        // 見つからない場合はスキップ
+                    }
+                }
+
+                authMessages.delete(interaction.guildId);
+
+                await interaction.reply({
+                    content: deleted ? '認証メッセージを削除しました。' : 'メッセージはすでに削除されているか、見つかりませんでした。',
+                    flags: MessageFlags.Ephemeral
+                });
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({
+                    content: '認証メッセージの削除に失敗しました。',
+                    flags: MessageFlags.Ephemeral
+                });
             }
         }
-    </script>
-</body>
-</html>
+    }
+
+    // 2. ボタンが押されたときの処理
+    else if (interaction.isButton()) {
+        if (interaction.customId === 'start_auth') {
+            const token = crypto.randomBytes(32).toString('hex');
+            
+            // トークンにサーバーIDとユーザーIDを紐づけて保存
+            activeTokens.set(token, {
+                guildId: interaction.guildId,
+                userId: interaction.user.id
+            });
+
+            const authUrl = `https://hiromu0623-discord-auth.pages.dev/?token=${token}`;
+
+            await interaction.reply({
+                content: `認証用のリンクを発行しました！\n以下のリンクからログインを進めてください（※このリンクはあなた専用です）\n\n${authUrl}`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+});
+
+// ボット起動
+client.login(process.env.DISCORD_TOKEN);
