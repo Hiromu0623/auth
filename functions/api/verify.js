@@ -11,7 +11,7 @@ export async function onRequestPost(context) {
             });
         }
 
-        // 1. Cloudflare Turnstileのトークンを検証
+        
         const turnstileData = new URLSearchParams();
         turnstileData.append('secret', env.TURNSTILE_SECRET_KEY);
         turnstileData.append('response', turnstileToken);
