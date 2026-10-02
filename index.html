@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>サーバー認証 - 認証システム</title>
-    <link rel="icon" href="./favicon.ico" type="image/x-icon">
     
+    <!-- タブのアイコン (favicon) -->
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Cloudflare Turnstile のスクリプト -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -39,10 +42,10 @@
                 <!-- 👇 Cloudflare Turnstile ウィジェットの配置場所 -->
                 <!-- サイトキー（sitekey）はCloudflareダッシュボードで発行したものを指定してください -->
                 <div class="flex justify-center mb-6">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-64Li3m" data-callback="onTurnstileSuccess"></div>
+                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-6〇〇i3m" data-callback="onTurnstileSuccess"></div>
                 </div>
 
-                <!-- 認証実行ボタン（最初は無効化しておき、Turnstileクリア後に有効化することも可能） -->
+                <!-- 認証実行ボタン -->
                 <button id="verify-btn" onclick="executeAuth()" disabled class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-indigo-100 opacity-50 cursor-not-allowed">
                     認証を完了する
                 </button>
@@ -72,11 +75,6 @@
     <script>
         // 1. URLからDiscord Botのトークンを取得
         function extractToken() {
-            const path = window.location.pathname;
-            const match = path.match(/token=([^/]+)/);
-            if (match && match[1]) {
-                return match[1];
-            }
             const params = new URLSearchParams(window.location.search);
             return params.get('token');
         }
@@ -94,23 +92,52 @@
         // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数
         function onTurnstileSuccess(token) {
             turnstileToken = token;
-            // 検証がクリアされたら「認証を完了する」ボタンを押せるようにする
             const btn = document.getElementById('verify-btn');
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         // 3. 「認証を完了する」ボタンを押したときの処理
-        function executeAuth() {
-            if (!discordToken || !turnstileToken) return;
+        async function executeAuth() {
+            if (!discordToken || !turnstileToken) {
+                alert('トークンまたはセキュリティ検証が無効です。');
+                return;
+            }
 
-            // 画面を成功状態に切り替え
-            document.getElementById('auth-box').classList.add('hidden');
-            document.getElementById('success-box').classList.remove('hidden');
+            const btn = document.getElementById('verify-btn');
+            btn.disabled = true;
+            btn.textContent = '認証処理中...';
 
-            // TODO: ここで Cloudflare Pages Functions (バックエンド) に 
-            // 「discordToken」と「turnstileToken」を送信して、
-            // サーバー側でTurnstileの検証＆Discord Botへのロール付与リクエストを行います！
+            try {
+                // Cloudflare Pages Functions (バックエンド) へデータを送信
+                const response = await fetch('/api/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        token: discordToken,
+                        turnstileToken: turnstileToken
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // 成功した場合：画面を成功状態に切り替え
+                    document.getElementById('auth-box').classList.add('hidden');
+                    document.getElementById('success-box').classList.remove('hidden');
+                } else {
+                    alert('認証に失敗しました: ' + (result.error || '不明なエラー'));
+                    btn.disabled = false;
+                    btn.textContent = '認証を完了する';
+                }
+            } catch (error) {
+                console.error('通信エラー:', error);
+                alert('サーバーとの通信に失敗しました。');
+                btn.disabled = false;
+                btn.textContent = '認証を完了する';
+            }
         }
     </script>
 </body>
