@@ -3,9 +3,7 @@ export async function onRequestPost(context) {
         const { request, env } = context;
         const body = await request.json();
         
-        // ---------------------------------------------------------
-        // パターン1: Botから「トークンとユーザー情報を登録して！」と言われたとき
-        // ---------------------------------------------------------
+        
         if (body.action === 'register') {
             const { token, guildId, userId } = body;
             if (!token || !guildId || !userId) {
@@ -16,9 +14,7 @@ export async function onRequestPost(context) {
             return new Response(JSON.stringify({ success: true }));
         }
 
-        // ---------------------------------------------------------
-        // パターン2: ブラウザから「認証を完了する」が押されたとき
-        // ---------------------------------------------------------
+        
         const { token, turnstileToken } = body;
 
         if (!token || !turnstileToken) {
@@ -28,7 +24,7 @@ export async function onRequestPost(context) {
             });
         }
 
-        // 1. KVからトークンを検索して、どのサーバーの誰かを取り出す
+        
         const tokenDataStr = await env.AUTH_KV.get(token);
         if (!tokenDataStr) {
             return new Response(JSON.stringify({ success: false, error: '無効または有効期限切れのトークンです。' }), {
@@ -38,7 +34,7 @@ export async function onRequestPost(context) {
         }
         const { guildId, userId } = JSON.parse(tokenDataStr);
 
-        // 2. Cloudflare Turnstileのトークンを検証
+        
         const turnstileData = new URLSearchParams();
         turnstileData.append('secret', env.TURNSTILE_SECRET_KEY);
         turnstileData.append('response', turnstileToken);
@@ -60,10 +56,10 @@ export async function onRequestPost(context) {
             });
         }
 
-        // 3. Discord APIを直接叩いて「認証済み」ロールを自動検索・付与する！
+        
         const botToken = env.DISCORD_BOT_TOKEN;
 
-        // ① サーバー内のロール一覧を取得して「認証済み」という名前のロールを探す
+       
         const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
             headers: { Authorization: `Bot ${botToken}` }
         });
@@ -72,7 +68,7 @@ export async function onRequestPost(context) {
         
         let authRole = roles.find(r => r.name === '認証済み');
         
-        // なければ自動作成する
+       
         if (!authRole) {
             const createRoleRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
                 method: 'POST',
@@ -86,7 +82,7 @@ export async function onRequestPost(context) {
             authRole = await createRoleRes.json();
         }
 
-        // ② ユーザーにそのロールを付与する (PUTリクエスト)
+        
         const addRoleRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}/roles/${authRole.id}`, {
             method: 'PUT',
             headers: { Authorization: `Bot ${botToken}` }
@@ -96,7 +92,7 @@ export async function onRequestPost(context) {
             throw new Error('ユーザーへのロール付与に失敗しました（Botのロール位置が低くないか確認してください）。');
         }
 
-        // 4. 使い終わったトークンをKVから削除（使い回し防止）
+       
         await env.AUTH_KV.delete(token);
 
         return new Response(JSON.stringify({ success: true }), {
