@@ -3,178 +3,254 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>サーバー認証 - 認証システム</title>
-    
-    <!-- タブのアイコン (favicon) -->
+    <title>iroirobot | 多機能DiscordセキュリティBot</title>
     <link rel="icon" href="./favicon.ico" type="image/x-icon">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        discord: {
-                            DEFAULT: '#5865F2',
-                            hover: '#4752C4',
-                        }
-                    }
-                }
-            }
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-color: #5865f2;
+            --accent-hover: #4752c4;
+            --border-color: #334155;
         }
-    </script>
-    <!-- Cloudflare Turnstile のスクリプト -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-</head>
-<body class="bg-[#2f3136] min-h-screen flex flex-col justify-between font-sans text-gray-200">
 
-    <!-- ヘッダー -->
-    <header class="w-full py-5 px-8 bg-[#202225] shadow-md flex items-center justify-center">
-        <h1 class="text-xl font-bold text-white flex items-center gap-2 tracking-wider">
-            <!-- Discord風のアイコン -->
-            <svg class="w-7 h-7 text-discord" fill="currentColor" viewBox="0 0 127.14 96.36">
-                <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.3,46,96.19,53,91.08,65.69,84.69,65.69Z"/>
-            </svg>
-            Discord Server Auth
-        </h1>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ヘッダー */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 40px;
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        header .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-main);
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+
+        header nav a {
+            color: var(--text-sub);
+            text-decoration: none;
+            margin-left: 20px;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        header nav a:hover {
+            color: var(--text-main);
+        }
+
+        /* ヒーローセクション（トップ画面） */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 0 20px;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 70%);
+        }
+
+       .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #5865f2, #00d2ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-sub);
+            max-width: 600px;
+            margin-bottom: 40px;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 15px 35px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.4);
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(88, 101, 242, 0.6);
+        }
+
+        /* 機能紹介セクション */
+        .features {
+            padding: 100px 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 60px;
+            color: var(--text-main);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            background-color: var(--surface-color);
+            padding: 40px 30px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+        }
+
+        .feature-card p {
+            color: var(--text-sub);
+            font-size: 0.95rem;
+        }
+
+        /* フッター */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        /* スクロールアニメーション用クラス */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px); /* 下に40pxずらしておく */
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0); /* 元の位置に戻る */
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="/" class="logo">iroirobot</a>
+        <nav>
+            <a href="/terms-of-service">利用規約</a>
+            <a href="/privacy">プライバシーポリシー</a>
+        </nav>
     </header>
 
-    <!-- メインコンテンツ -->
-    <main class="flex-1 flex items-center justify-center p-4">
-        <!-- パネル部分 -->
-        <div class="max-w-md w-full bg-[#36393f] rounded-2xl shadow-2xl p-8 border border-white/5 text-center transition-all">
-            
-            <div id="auth-box">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-discord/10 text-discord rounded-full mb-6 ring-4 ring-discord/20">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                    </svg>
-                </div>
+    <section class="hero">
+        <h1 class="reveal">Discordをもっと安全に、<br>もっと便利に。</h1>
+        <p class="reveal" style="transition-delay: 0.2s;">iroirobotは、Web認証、高機能チケット、強力なスパム検知を備えたオールインワンのDiscordコミュニティ管理ツールです。</p>
+        <a href="#" class="btn reveal" style="transition-delay: 0.4s;">Discordに導入する</a>
+    </section>
 
-                <h2 class="text-2xl font-bold mb-2 text-white">セキュリティ検証</h2>
-                <p class="text-[#b9bbbe] text-sm mb-6">悪意ある操作を防止するため、以下のチェックを完了してください。</p>
-
-                <!-- エラーメッセージ表示エリア（alertの代わり） -->
-                <div id="error-message" class="hidden bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-xl text-xs mb-6 text-left break-all"></div>
-
-                <!-- 👇 Cloudflare Turnstile ウィジェットの配置場所 -->
-                <div class="flex justify-center mb-6">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-64Li3m" data-callback="onTurnstileSuccess" data-theme="dark"></div>
-                </div>
-
-                <!-- 認証処理中の状態を表示するステータスエリア -->
-                <div id="status-container" class="hidden items-center justify-center gap-2 py-3.5 px-4 bg-discord/10 rounded-xl text-discord font-bold text-sm border border-discord/20">
-                    <svg class="animate-spin h-5 w-5 text-discord" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>認証処理中...</span>
-                </div>
+    <section class="features">
+        <h2 class="section-title reveal">圧倒的な機能</h2>
+        <div class="feature-grid">
+            <div class="feature-card reveal">
+                <div class="feature-icon">🔐</div>
+                <h3>Web & 画像認証</h3>
+                <p>Discord内だけではなく、外部WebサイトとCAPTCHA（画像認証）を用いた強力な認証システム。不正なBotや荒らしの侵入を確実にブロックします。</p>
             </div>
-
-            <!-- 完了後に切り替える画面 -->
-            <div id="success-box" class="hidden">
-                <div class="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-full mb-6 ring-4 ring-emerald-500/20">
-                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                </div>
-                <h2 class="text-2xl font-bold mb-2 text-white">認証が完了しました！</h2>
-                <p class="text-[#b9bbbe] text-sm mb-6">Discordサーバーに戻り、ロールが付与されているかご確認ください。</p>
-                <p class="text-xs text-gray-400 bg-[#202225] py-2 rounded-lg border border-white/5">このページは閉じても問題ありません。</p>
+            <div class="feature-card reveal" style="transition-delay: 0.2s;">
+                <div class="feature-icon">🎫</div>
+                <h3>高機能チケット</h3>
+                <p>お問い合わせ対応をスムーズに。アクセス可能なロールの指定や、ワンクリックでの作成・削除機能など、カスタマイズ性の高いパネルを作成できます。</p>
             </div>
-
+            <div class="feature-card reveal" style="transition-delay: 0.4s;">
+                <div class="feature-icon">🛡️</div>
+                <h3>強力なスパム検知</h3>
+                <p>メンションスパム、テキストの連投、他サーバーへの招待リンクなどを自動で検知。違反者には即座にタイムアウトやBANなどの処罰を下します。</p>
+            </div>
         </div>
-    </main>
+    </section>
 
-    <!-- フッター -->
-    <footer class="w-full py-5 text-center text-xs text-gray-500 bg-[#202225] border-t border-black/20">
-        &copy; iroiroBot System. All rights reserved.
+    <footer>
+        <p>&copy; 2026 iroirobot All Rights Reserved.</p>
     </footer>
 
-    <!-- スクリプト処理 -->
+    <!-- スクロールアニメーション用のJavaScript -->
     <script>
-        // 1. URLからDiscord Botのトークンを取得
-        function extractToken() {
-            const params = new URLSearchParams(window.location.search);
-            return params.get('token');
-        }
+        // Intersection Observer APIを使って、要素が画面内に入ったかを判定
+        const revealElements = document.querySelectorAll('.reveal');
 
-        const discordToken = extractToken();
-        let turnstileToken = null; // Turnstileの認証完了トークン
-
-        function showError(message) {
-            const errorBox = document.getElementById('error-message');
-            errorBox.textContent = message;
-            errorBox.classList.remove('hidden');
-        }
-
-        function hideError() {
-            const errorBox = document.getElementById('error-message');
-            errorBox.classList.add('hidden');
-        }
-
-        // 初期チェック（トークンが無い場合）
-        if (!discordToken) {
-            showError('エラー: 有効な認証トークンが見つかりません。Discordから再度アクセスしてください。');
-        }
-
-        // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数（自動実行）
-        function onTurnstileSuccess(token) {
-            turnstileToken = token;
-            executeAuth(); // 自動的に送信処理を実行
-        }
-
-        // 3. 認証実行処理
-        async function executeAuth() {
-            hideError();
-
-            if (!discordToken) {
-                showError('認証トークンが不足しています。');
-                return;
-            }
-
-            if (!turnstileToken) {
-                showError('セキュリティ検証トークンが無効です。');
-                return;
-            }
-
-            const statusContainer = document.getElementById('status-container');
-            statusContainer.classList.remove('hidden');
-            statusContainer.classList.add('flex');
-
-            try {
-                // Cloudflare Pages Functions (バックエンド) へデータを送信
-                const response = await fetch('/api/verify', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        token: discordToken,
-                        turnstileToken: turnstileToken
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    // 成功した場合：画面を成功状態に切り替え
-                    document.getElementById('auth-box').classList.add('hidden');
-                    document.getElementById('success-box').classList.remove('hidden');
-                } else {
-                    showError('認証に失敗しました: ' + (result.error || '不明なエラー'));
-                    statusContainer.classList.add('hidden');
-                    statusContainer.classList.remove('flex');
+        const revealCallback = (entries, observer) => {
+            entries.forEach(entry => {
+                // 要素が画面内に入ったら 'active' クラスを追加
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                    // 一度表示されたら監視を終了する（毎回アニメーションさせたい場合はこの行を消す）
+                    observer.unobserve(entry.target); 
                 }
-            } catch (error) {
-                console.error('通信エラー:', error);
-                showError('サーバーとの通信に失敗しました。');
-                statusContainer.classList.add('hidden');
-                statusContainer.classList.remove('flex');
-            }
-        }
+            });
+        };
+
+        const revealOptions = {
+            threshold: 0.1, // 要素が10%見えたらアニメーションを開始
+            rootMargin: "0px 0px -50px 0px" // 画面下部から50px上で発火
+        };
+
+        const revealObserver = new IntersectionObserver(revealCallback, revealOptions);
+
+        revealElements.forEach(el => {
+            revealObserver.observe(el);
+        });
     </script>
 </body>
 </html>
