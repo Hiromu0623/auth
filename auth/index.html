@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>サーバー認証 - 認証システム</title>
     
+    <!-- タブのアイコン (favicon) -->
     <link rel="icon" href="./favicon.ico" type="image/x-icon">
 
     <!-- Tailwind CSS -->
@@ -57,8 +58,8 @@
                 <!-- エラーメッセージ表示エリア（alertの代わり） -->
                 <div id="error-message" class="hidden bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-xl text-xs mb-6 text-left break-all"></div>
 
-                <!-- 👇 初期状態では非表示にし、トークン確認後に表示する -->
-                <div id="turnstile-container" class="flex justify-center mb-6 hidden">
+                <!-- 👇 Cloudflare Turnstile ウィジェットの配置場所 -->
+                <div class="flex justify-center mb-6">
                     <div class="cf-turnstile" data-sitekey="0x4AAAAAAFL8gbxTE-64Li3m" data-callback="onTurnstileSuccess" data-theme="dark"></div>
                 </div>
 
@@ -114,39 +115,9 @@
             errorBox.classList.add('hidden');
         }
 
-        // ページ読み込み時の初期チェックとトークン有効性確認
+        // 初期チェック（トークンが無い場合）
         if (!discordToken) {
             showError('エラー: 有効な認証トークンが見つかりません。Discordから再度アクセスしてください。');
-        } else {
-            verifyTokenOnLoad();
-        }
-
-        // トークンが有効かサーバーへ問い合わせる関数
-        async function verifyTokenOnLoad() {
-            try {
-                const response = await fetch('/api/verify', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'check', // トークン確認用アクション
-                        token: discordToken
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    // トークンが有効な場合のみTurnstileウィジェットを表示
-                    document.getElementById('turnstile-container').classList.remove('hidden');
-                } else {
-                    showError('エラー: ' + (result.error || '無効または有効期限切れのトークンです。Discordからやり直してください。'));
-                }
-            } catch (error) {
-                console.error('トークン確認エラー:', error);
-                showError('サーバーとの通信に失敗しました。');
-            }
         }
 
         // 2. Turnstileの検証が成功したときに呼ばれるコールバック関数（自動実行）
@@ -181,7 +152,6 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        action: 'verify', // 本格的な認証処理アクション
                         token: discordToken,
                         turnstileToken: turnstileToken
                     })
