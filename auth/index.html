@@ -163,6 +163,9 @@
                     // 成功した場合：画面を成功状態に切り替え
                     document.getElementById('auth-box').classList.add('hidden');
                     document.getElementById('success-box').classList.remove('hidden');
+                     setTimeout(() => {
+                        window.location.href = 'discord://';
+                    }, 2000);
                 } else {
                     showError('認証に失敗しました: ' + (result.error || '不明なエラー'));
                     statusContainer.classList.add('hidden');
